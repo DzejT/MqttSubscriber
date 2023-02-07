@@ -1,0 +1,10 @@
+{
+    "name": "John Doe",
+    "data": {
+        "age": 35
+    },
+    "street": "123 Main St",
+    "city": "San Francisco",
+    "phone_number": "+1 (555) 555-5555",
+    "email": "johndoe@example.com"
+}
