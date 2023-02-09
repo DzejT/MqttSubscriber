@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <syslog.h>
+#include <time.h>
 #include "uci_utils.h"
 #include "event_utils.h"
 
@@ -14,7 +15,7 @@ void on_connect(struct mosquitto *mosq, void *obj, int rc){
     struct callback_data *conf = obj;
 
     if(rc){
-        syslog(LOG_ERR,"Error with result code: %d\n", rc);
+        syslog(LOG_ERR,"On connect | Error with result code: %d\n", rc);
         return;
     }
 
@@ -26,17 +27,20 @@ void on_connect(struct mosquitto *mosq, void *obj, int rc){
 }
 
 void on_message(struct mosquitto *mosq, void *obj, const struct mosquitto_message *msg){
-    syslog(LOG_INFO, "New message with topic %s: %s\n", msg->topic, (char*) msg->payload);
+    time_t current_time;
+    time(&current_time);
+
+    syslog(LOG_INFO, "%s | New message with topic %s: %s\n", ctime(&current_time), msg->topic, (char*) msg->payload);
     FILE *fp;
     fp = fopen(LOG_FILE, "a");
-    fprintf(fp, "New message with topic %s: %s\n", msg->topic, (char*) msg->payload);
+    fprintf(fp, "%s | New message with topic %s: %s\n", ctime(&current_time), msg->topic, (char*) msg->payload);
     fclose(fp);
 
     check_value(msg, obj);
 }
 
 void setup_user_authentication(struct mosquitto *mosq, struct security_configs security_conf){
-    int rc = mosquitto_username_pw_set(mosq, "user", "user");
+    int rc = mosquitto_username_pw_set(mosq, security_conf.username, security_conf.password);
     if(rc)
         syslog(LOG_ERR, "Failed to set username/password | RC = %d", rc);
     

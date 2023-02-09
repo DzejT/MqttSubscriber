@@ -70,6 +70,11 @@ function o.validate(self, value, section)
     return value
 end
 
+
+o = s4:option(Value, "password", translate("Sender's email password"), translate("Sender's email password"))
+o.datatype = "string"
+o.maxlength = 49
+
 o = s4:option(Value, "reciever", translate("Recipient"), translate("Recipient"))
 -- o.anonymous = true
 -- o.addremove = true

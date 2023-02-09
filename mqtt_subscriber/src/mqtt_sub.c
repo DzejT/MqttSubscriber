@@ -9,8 +9,6 @@
 #include "event_utils.h"
 #include "mosq_methods.h"
 
-#define LOG_FILE "/log/mqtt_sub.log"
-
 int run_loop = 1;
 
 void sigHandler(int signo);
@@ -21,10 +19,8 @@ int main(int argc, char **argv){
     signal(SIGINT, sigHandler);
     signal(SIGTERM, sigHandler);
 
-    printf("Program started\n");
 
     int rc;
-    int id = 10;
     mosquitto_lib_init();
     struct mosquitto *mosq;
 
@@ -34,7 +30,7 @@ int main(int argc, char **argv){
 
     read_configs(&general_conf, &security_conf, &events);
     
-    struct callback_data data;
+    struct callback_data data = {0};
     data.events = events;
     data.general_conf = general_conf;
     data.security_conf = security_conf;
@@ -65,6 +61,7 @@ int main(int argc, char **argv){
 
     }
     mosquitto_loop_stop(mosq, true);
+    
 
     mosquitto_disconnect(mosq);
     mosquitto_destroy(mosq);

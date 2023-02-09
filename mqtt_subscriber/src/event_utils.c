@@ -1,71 +1,37 @@
-// #include "event_utils.h"
 #include <mosquitto.h>
 #include <curl/curl.h>
 #include "uci_utils.h"
 #include <time.h>
 #include <json-c/json.h>
 #include <syslog.h>
+#include "event_utils.h"
 
+#define RC_OK 0
+#define RC_ERR 1
 
-static size_t payload_source(char *ptr, size_t size, size_t nmemb, void *userp);
-static void send_mail(struct event_configs data, char text[]);
-void check_value(const struct mosquitto_message *msg, void *obj);
-static void check_int_value(const struct mosquitto_message *msg, struct event_configs data);
-static void check_string_value(const struct mosquitto_message *msg, struct event_configs data);
-static void parse_json(char *param, char *msgPayload, int variableType, void *value);
 
 struct upload_status {
-    size_t bytes_read;
-    char text[100];
-    struct event_configs data
+    int line_read;
 };
 
-char payload_text[500] =
-  "Date: Mon, 29 Nov 2023 21:54:29 +1100\r\n"
-  "Subject: Router event notification\r\n"
-  "\r\n" 
-  "Tekstas, kuris įtikins Jokūbą, kad tikrai veikia :D.\r\n";
+char payload_text[2048];
 
-
-
-// char* generate_text(char *body, struct event_configs data){
-//     char payload[500];
-//     sprintf(payload, 
-//     "Date: %s\r\n"
-//     "To:  %s \r\n"
-//     "From: %s \r\n"
-//     "Subject: Event notification\r\n"
-//     "\r\n" /* empty line to divide headers from body, see RFC5322 */
-//     "%s.\r\n"
-//     "\r\n", body, data.recipient, data.sender);
-
-//     return payload;
-// }
-  
 static size_t payload_source(char *ptr, size_t size, size_t nmemb, void *userp)
 {
     struct upload_status *upload_ctx = (struct upload_status *)userp;
     const char *data;
-    size_t room = size * nmemb;
 
     if((size == 0) || (nmemb == 0) || ((size*nmemb) < 1)) {
         return 0;
     }
+    
+    if(upload_ctx->line_read == 0){
+    
+        data = payload_text;
 
-    // char *payload_text = generate_text(upload_ctx->text, upload_ctx->data);
-
-    // char *payload;
-
-    // strcat(payload_text, upload_ctx->text);
-
-    data = &payload_text[upload_ctx->bytes_read];
-
-    if(data) {
         size_t len = strlen(data);
-        if(room < len)
-        len = room;
         memcpy(ptr, data, len);
-        upload_ctx->bytes_read += len;
+        upload_ctx->line_read++;
 
         return len;
     }
@@ -73,20 +39,20 @@ static size_t payload_source(char *ptr, size_t size, size_t nmemb, void *userp)
     return 0;
 }
 
-static void send_mail(struct event_configs data, char text[])
+static void send_mail(struct event_configs data, char *text)
 {
   CURL *curl;
   CURLcode res = CURLE_OK;
   struct curl_slist *recipients = NULL;
   struct upload_status upload_ctx = { 0 };
-  strncpy(upload_ctx.text, text, 100);
-  upload_ctx.data = data;
+
 
   curl = curl_easy_init();
   if(curl) {
+    snprintf(payload_text, 2048, "To: A recieved %s From: Router %s \r\nSubject: Event received\r\n\r\n%s\r\n", data.recipient, "jokubastrak@gmail.com", text);
     /* Set username and password */
-    curl_easy_setopt(curl, CURLOPT_USERNAME, "jokubastrak@gmail.com");
-    curl_easy_setopt(curl, CURLOPT_PASSWORD, "lrknzmcinkkuyrgh");
+    curl_easy_setopt(curl, CURLOPT_USERNAME, data.sender);
+    curl_easy_setopt(curl, CURLOPT_PASSWORD, data.password);
     curl_easy_setopt(curl, CURLOPT_URL, "smtp://smtp.gmail.com:587");
 
     curl_easy_setopt(curl, CURLOPT_USE_SSL, CURLUSESSL_ALL);
@@ -98,8 +64,6 @@ static void send_mail(struct event_configs data, char text[])
     curl_easy_setopt(curl, CURLOPT_READFUNCTION, payload_source);
     curl_easy_setopt(curl, CURLOPT_READDATA, (void*)&upload_ctx);
     curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
-
-    curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
 
     res = curl_easy_perform(curl);
 
@@ -135,26 +99,11 @@ static void check_int_value(const struct mosquitto_message *msg, struct event_co
     data.int_value = atoi(data.value);
     char text [100];
     int value;
-    parse_json(data.parameter, msg->payload, 1, &value);
-    printf("value\n");
-    printf("%d\n", value);
-
-    // if(value == NULL)
-    //     return;
-
-    // struct json_object *value_json, *data_json, *parsed_json;
-
-    // parsed_json = json_tokener_parse(msg->payload);
-    // bool rc = json_object_object_get_ex(parsed_json, "data", &data_json);
-    // if (rc == false)
-    //     return;
-    
-    // rc = json_object_object_get_ex(data_json, data.parameter, &value_json);
-    // if (rc == false)
-    //     return;
-
-    // int value = json_object_get_int(value_json);
-    
+    int rc = parse_json(data.parameter, msg->payload, 1, &value);
+    if(rc == 1)
+    {
+        return;
+    }
 
     if(strcmp(data.comparator, ">") == 0){
         if(value > data.int_value){
@@ -203,24 +152,11 @@ static void check_int_value(const struct mosquitto_message *msg, struct event_co
 static void check_string_value(const struct mosquitto_message *msg, struct event_configs data){
     char text [100];
     char *value; 
-    parse_json(data.parameter, msg->payload, 0, &value);
-    if(value == NULL)
+    int rc = parse_json(data.parameter, msg->payload, 0, &value);
+    if(rc != RC_OK){
         return;
+    }
     
-    printf("value\n");
-    printf("%s\n", value);
-    // struct json_object *value_json, *data_json, *parsed_json;
-
-    // parsed_json = json_tokener_parse(msg->payload);
-    // int rc = json_object_object_get_ex(parsed_json, "data", &data_json);
-    // if (rc == NULL)
-    //     return NULL;
-    
-    // rc = json_object_object_get_ex(data_json, data.parameter, &value_json);
-    // if (rc == NULL)
-    //     return NULL;
-
-    // char *value = json_object_get_string(value_json);
 
     if(strcmp(data.comparator, ">") == 0){
         if(strcmp(value, data.value) > 0){
@@ -266,35 +202,29 @@ static void check_string_value(const struct mosquitto_message *msg, struct event
     }
 }
 
-static void parse_json(char *param, char *msgPayload, int variableType, void *value){
-    char **charValue;
-    int *intValue;
-    printf("0\n");
+static int parse_json(char *param, char *msgPayload, int variableType, void *value){
     struct json_object *value_json, *data_json, *parsed_json;
-    printf("1\n");
 
     parsed_json = json_tokener_parse(msgPayload);
-    printf("2\n");
-    int rc = json_object_object_get_ex(parsed_json, "data", &data_json);
-    printf("3\n");
-    if (rc == NULL)
-        return NULL;
-    
-    printf("4\n");
-    rc = json_object_object_get_ex(data_json, param, &value_json);
-    if (rc == NULL)
-        return NULL;
-    
+    json_bool rc = json_object_object_get_ex(parsed_json, "data", &data_json);
+    if (!rc){
+        syslog(LOG_ERR, "Failed to read JSON value");
+        return RC_ERR;
+    }
 
-    printf("5\n");
+    rc = json_object_object_get_ex(data_json, param, &value_json);
+    if (!rc){
+        syslog(LOG_ERR, "Failed to read JSON value");
+        return RC_ERR;
+    }
+        
     if(variableType == 0){
         *(char**)value = json_object_get_string(value_json);
-        return;
+        return RC_OK;
     }
-    printf("6\n");
     if(variableType == 1){
         *(int*)value = json_object_get_int(value_json);
-        return;
+        return RC_OK;
     }
 
 }

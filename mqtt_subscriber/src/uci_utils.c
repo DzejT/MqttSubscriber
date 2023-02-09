@@ -96,6 +96,10 @@ void load_events(struct events *events, struct uci_section *section){
         if(strcmp(option->e.name, "parameter") == 0){
             events->event[events->n].parameter = option->v.string;
         }
+
+        if(strcmp(option->e.name, "password") == 0){
+            events->event[events->n].password = option->v.string;
+        }
     }
 }
 

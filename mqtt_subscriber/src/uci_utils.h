@@ -27,6 +27,7 @@ struct event_configs{
     char *sender;
     char *recipient;
     char *parameter;
+    char *password;
 };
 
 struct events{

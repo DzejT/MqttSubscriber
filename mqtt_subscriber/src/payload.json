@@ -1,10 +1,8 @@
 {
-    "name": "John Doe",
+    "name": "outdoor thermometer",
+    "id": "thermo_123",
     "data": {
-        "age": 35
-    },
-    "street": "123 Main St",
-    "city": "San Francisco",
-    "phone_number": "+1 (555) 555-5555",
-    "email": "johndoe@example.com"
+        "temp": 20,
+        "humidity": 60
+    }
 }
